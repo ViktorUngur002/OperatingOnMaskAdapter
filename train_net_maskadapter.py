@@ -19,6 +19,9 @@ except:
 import copy
 import itertools
 import logging
+import wandb
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 import os
 
 from collections import OrderedDict
@@ -298,6 +301,9 @@ def setup(args):
     """
     Create configs and perform basic setups.
     """
+
+    wandb.init(project="MaskAdapter results reproducing", sync_tensorboard=True)
+
     cfg = get_cfg()
     # for poly lr schedule
     add_deeplab_config(cfg)

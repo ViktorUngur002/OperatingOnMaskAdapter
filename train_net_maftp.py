@@ -19,6 +19,9 @@ except:
 import copy
 import itertools
 import logging
+import wandb
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 import os
 # os.environ['CUDA_VISIBLE_DEVICES'] = '2,4,6'
 
@@ -248,6 +251,9 @@ def setup(args):
     """
     Create configs and perform basic setups.
     """
+
+    wandb.init(project="MaskAdapter results reproducing", sync_tensorboard=True)
+
     cfg = get_cfg()
     # for poly lr schedule
     add_deeplab_config(cfg)

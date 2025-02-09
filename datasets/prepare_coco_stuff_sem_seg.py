@@ -208,7 +208,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Convert COCO Stuff 164k annotations to mmsegmentation format"
     )  # noqa
-    parser.add_argument("--coco_path", default='datasets/coco', help="coco stuff path")
+    parser.add_argument("--coco_path", default='/home/ubuntu/Models/MaskAdapter/datasets', help="coco stuff path")
     parser.add_argument("--nproc", default=16, type=int, help="number of process")
     args = parser.parse_args()
     return args
@@ -216,7 +216,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    coco_path = args.coco_path
+    coco_path = '/home/ubuntu/Models/MaskAdapter/datasets/coco'
     nproc = args.nproc
     print(full_clsID_to_trID)
     out_mask_dir = osp.join(coco_path, "stuffthingmaps_detectron2")

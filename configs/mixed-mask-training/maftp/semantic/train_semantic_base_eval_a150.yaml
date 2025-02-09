@@ -34,10 +34,10 @@ INPUT:
   DATASET_MAPPER_NAME: "mask_former_semantic" # mask_former_semantic coco_panoptic_lsj
 DATASETS:
   TRAIN: ("openvocab_coco_2017_train_stuff_sem_seg",)  
-  TEST: ('openvocab_ade20k_panoptic_val',) 
+  TEST: ("openvocab_pascal_ctx59_sem_seg_val",) 
 
 SOLVER:
-  IMS_PER_BATCH: 24
+  IMS_PER_BATCH: 2
   BASE_LR: 0.0001
   STEPS: (43371, 47314)
   MAX_ITER: 49286
@@ -46,5 +46,5 @@ TEST:
   EVAL_PERIOD: 2500
 INPUT:
   DATASET_MAPPER_NAME: "mask_former_semantic"  #
-OUTPUT_DIR: ./training/maftp-base/ade20k
+OUTPUT_DIR: ./eval/pc59
      
