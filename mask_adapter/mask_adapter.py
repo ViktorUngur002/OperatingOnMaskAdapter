@@ -200,23 +200,34 @@ class MASK_Adapter(nn.Module):
                 return self.train_text_classifier[dataname], self.train_num_templates[dataname]
             
             if dataname not in self.train_num_templates:
+                # prepare_class_names_from_metadata function returns the number of 
+                # text templates (train_num_templates) and the list of 
+                # class names (train_class_names)
                 _, self.train_num_templates[dataname], train_class_names = self.prepare_class_names_from_metadata(
                     self.train_metadata[dataname], self.train_metadata[dataname]
                 )
             
             if os.path.exists(out_path):
+                # loads the text classifier if it exists
                 text_classifier = torch.from_numpy(np.load(out_path)).to(self.device)
             else:
                 text_classifier = []
+                # batch size
                 bs = 128
 
+                # loops through class names in batches of size bs
                 for idx in range(0, len(train_class_names), bs):
+                    # text embedding for each batch is computed
                     text_classifier.append(
                         self.backbone.get_text_classifier(train_class_names[idx:idx+bs], self.device).detach()
                     )
                 text_classifier = torch.cat(text_classifier, dim=0)
 
+                # normaizing the result
                 text_classifier /= text_classifier.norm(dim=-1, keepdim=True)
+                # the embeddings are reshaped based on the number of prompts 
+                # multiple prompts are used for each class name, and this step computes 
+                # the mean embedding across prompts for each class
                 text_classifier = text_classifier.reshape(text_classifier.shape[0] // len(VILD_PROMPT), len(VILD_PROMPT), text_classifier.shape[-1]).mean(1)
                 text_classifier /= text_classifier.norm(dim=-1, keepdim=True)
                 
@@ -318,6 +329,8 @@ class MASK_Adapter(nn.Module):
                     segments_info (list[dict]): Describe each segment in `panoptic_seg`.
                         Each dict contains keys "id", "category_id", "isthing".
         """
+
+        # setting the dataname based on whether is maft used or fcclip
         if self.train_maft and self.training :
             dataname = "openvocab_coco_2017_train_stuff_sem_seg"
         else:
@@ -326,20 +339,27 @@ class MASK_Adapter(nn.Module):
                 dataname_2 = batched_inputs[1]['dataname']
                 assert dataname == dataname_2, f"expect batch img from same dataset, but different from {dataname} and {dataname_2}"
 
+        # extracting the actual image from the input and sending it to the GPU
         images = [x["image"].to(self.device) for x in batched_inputs]
+        # the following two lines apply some changes to the image, probably for CLIP
         images = [(x - self.pixel_mean) / self.pixel_std for x in images]
         images = ImageList.from_tensors(images, self.size_divisibility)
 
+        # features are now extracted from the backbone, the backbone is CLIP
         features = self.backbone(images.tensor)
         
+        # dense CLIP visual features are extracted
         clip_feature = features['clip_vis_dense']
+        # gets the text embeddings
         text_classifier, num_templates = self.get_text_classifier(dataname)
         
+        # adds a void embedding to the text classifier computed
         text_classifier = torch.cat([text_classifier, F.normalize(self.void_embedding.weight, dim=-1)], dim=0)
                 
         if self.train_maft:
             #https://github.com/jiaosiyu1999/MAFT-Plus/blob/fd12806df651d309883229de9503e40533f92689/maft/maft_plus.py#L352
-            #For maftp,it uses a wrong reshape operation to get clip_vis_dense. Since we don't finetune cdt, we follow them. 
+            #For maftp,it uses a wrong reshape operation to get clip_vis_dense. Since we don't finetune cdt, we follow them.
+            # so these are some changes that are needed for MAFT+
             img_feat = self.visual_prediction_forward_convnext(clip_feature)
             text_classifier = self.cdt(img_feat, text_classifier)
             clip_vis_dense = img_feat
@@ -349,16 +369,22 @@ class MASK_Adapter(nn.Module):
         if self.training:
             # mask classification target
             if "instances" in batched_inputs[0]:
+                # here we produce the ground truth needed for training
                 gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
                 targets,masks,labels = self.prepare_targets(gt_instances, images)
             else:
                 targets = None            
 
+            # here the actual MaskAdapter is applied, on the CLIP dense features and on the masks fro mthe mask generator
             semantic_activation_maps = self.mask_adapter(clip_vis_dense, masks)
                 
+            # maps are then resized to match the size of clip_feature
             maps_for_pooling = F.interpolate(semantic_activation_maps, size=clip_feature.shape[-2:],
                                                 mode='bilinear', align_corners=False)
+
             if "convnext" in self.backbone.model_name.lower():
+                # a pooling operation is performed to aggregate feature maps 
+                # based on the semantic activation maps
                 B, C = clip_feature.size(0),clip_feature.size(1)
                 N = maps_for_pooling.size(1)
                 num_instances = N // self.num_output_maps
@@ -368,7 +394,8 @@ class MASK_Adapter(nn.Module):
                 pooled_clip_feature = (pooled_clip_feature.reshape(B,num_instances, self.num_output_maps, -1).mean(dim=-2).contiguous())
             else:
                 raise NotImplementedError
-                        
+
+            # these are the classification results of the text embeddings and pooled CLIP features  
             mask_cls_results = get_classification_logits(pooled_clip_feature, text_classifier, self.backbone.clip_model.logit_scale, num_templates)
 
             losses = self.cross_entropy_loss(mask_cls_results, labels)

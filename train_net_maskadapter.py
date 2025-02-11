@@ -157,6 +157,7 @@ class Trainer(DefaultTrainer):
     @classmethod
     def build_train_loader(cls, cfg):
         # Semantic segmentation dataset mapper
+        # the mapper for the task in lace is choosen
         if cfg.DATALOADER.SAMPLER_TRAIN == "MultiDatasetSampler":
             mapper = COCOCombineNewBaselineDatasetMapper(cfg, True) 
             data_loader = build_custom_train_loader(cfg, mapper=mapper)   
@@ -201,6 +202,7 @@ class Trainer(DefaultTrainer):
 
     @classmethod
     def build_optimizer(cls, cfg, model):
+        # sets the optimizer, this means also operations regarding weight decay and learning rate
         weight_decay_norm = cfg.SOLVER.WEIGHT_DECAY_NORM
         weight_decay_embed = cfg.SOLVER.WEIGHT_DECAY_EMBED
 
@@ -320,9 +322,9 @@ def setup(args):
 
 
 def main(args):
-    cfg = setup(args)
+    cfg = setup(args) # initializes the configuration object
 
-    if args.eval_only:
+    if args.eval_only: # used for the evaluation set the Trainer for this mode
         model = Trainer.build_model(cfg)
 
         total_params = sum(p.numel() for p in model.parameters())
@@ -348,7 +350,7 @@ def main(args):
             verify_results(cfg, res)
         return res
 
-    trainer = Trainer(cfg)
+    trainer = Trainer(cfg) # sets the trainer for normal training
     trainer.resume_or_load(resume=args.resume)
     return trainer.train()
 
@@ -356,7 +358,7 @@ def main(args):
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()
     print("Command Line Args:", args)
-    launch(
+    launch( # detectron function for launching the training, which could be done on multiple machines
         main,
         args.num_gpus,
         num_machines=args.num_machines,

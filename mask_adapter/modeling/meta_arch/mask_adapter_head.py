@@ -79,22 +79,28 @@ class MASKAdapterHead(nn.Module):
 
     def forward(self, clip_feature, masks):
 
-        
+        # N represents the total number of masks
         N = masks.size(1)
         masks = rearrange(masks, 'B N H W -> (B N) H W').unsqueeze(dim=1)
         
+        # the CLIP features are repeated N times, for each mask
         clip_feature = repeat(clip_feature, "B C H W -> (B N) C H W", N=N)
         
         H,W = clip_feature.shape[-2:]
+
+        # the following two lines are used to compute the mask features
         masks = F.interpolate(masks.float(), size=(H*4,W*4),
                                                 mode='bilinear', align_corners=False)
         masks = self.mask_downscaling(masks)
         
+        # the addition of the mask and CLIP features
         outputs = clip_feature + masks
         
         def _inner_forward(outputs):
+            # a 1x1 convolution to reduce the channels
             outputs = self.fuse(outputs)
-        
+
+            # the outputs are processed by three consecutive ConvNeXt
             outputs = self.cnext1(outputs)
             
             outputs = self.cnext2(outputs)
@@ -105,6 +111,7 @@ class MASKAdapterHead(nn.Module):
             outputs = self.norm(outputs.contiguous())
             outputs = outputs.permute(0, 3, 1, 2) 
             
+            # final convolutional layer
             outputs = self.final(outputs.contiguous()) 
             
             outputs = rearrange(outputs, '(B N) C H W -> B (N C) H W',N=N)
